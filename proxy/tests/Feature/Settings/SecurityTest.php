@@ -3,13 +3,27 @@
 use App\Models\User;
 use Illuminate\Support\Facades\Hash;
 
-test('security page redirects to profile settings', function () {
+test('settings entry points redirect to profile settings', function (string $uri, string $method) {
     $user = User::factory()->create();
 
     $this->actingAs($user)
-        ->get(route('security.edit'))
+        ->call($method, $uri)
         ->assertRedirect(route('profile.edit'));
-});
+})->with([
+    'settings' => '/settings',
+    'security' => '/settings/security',
+])->with(['GET', 'HEAD']);
+
+test('settings redirects reject unsupported query requests', function (string $uri) {
+    $user = User::factory()->create();
+
+    $this->actingAs($user)
+        ->call('QUERY', $uri)
+        ->assertMethodNotAllowed();
+})->with([
+    'settings' => '/settings',
+    'security' => '/settings/security',
+]);
 
 test('password can be updated', function () {
     $user = User::factory()->create();

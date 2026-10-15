@@ -129,3 +129,8 @@ for operations, server bootstrap, verification, backups, and troubleshooting.
 - [Guida al deploy in italiano](DEPLOY.it.md)
 - [External pygeoapi API reference](PYGEOAPI.md)
 - [Staging Nginx and TLS runbook](deploy/nginx/README.md)
+
+## Funding
+
+- The **proxygeoapi** software was funded by the European Union under
+  **Geo-INQUIRE** (project number 101058518).

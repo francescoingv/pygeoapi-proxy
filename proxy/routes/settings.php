@@ -7,10 +7,11 @@ use App\Http\Controllers\Settings\SensitiveConfirmationController;
 use App\Http\Controllers\Settings\TableSettingsController;
 use App\Http\Middleware\EnsureUserIsActive;
 use App\Http\Middleware\EnsureUserIsAdmin;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\Route;
 
 Route::middleware(['auth', EnsureUserIsActive::class])->group(function () {
-    Route::redirect('settings', '/settings/profile');
+    Route::get('settings', fn (): RedirectResponse => to_route('profile.edit'));
 
     Route::get('settings/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('settings/profile', [ProfileController::class, 'update'])->name('profile.update');
@@ -50,7 +51,7 @@ Route::middleware(['auth', EnsureUserIsActive::class, 'verified'])->group(functi
         ->middleware('throttle:3,1')
         ->name('settings.sensitive-confirmation.send');
 
-    Route::redirect('settings/security', '/settings/profile')->name('security.edit');
+    Route::get('settings/security', fn (): RedirectResponse => to_route('profile.edit'))->name('security.edit');
 
     Route::put('settings/password', [SecurityController::class, 'update'])
         ->middleware('throttle:6,1')

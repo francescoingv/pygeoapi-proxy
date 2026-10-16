@@ -68,7 +68,7 @@
         "clsx": "^2.1.1",
         "concurrently": "^9.2.5",
         "globals": "^15.15.0",
-        "laravel-precognition-react": "^2.1.0",
+        "laravel-precognition-react": "^2.1.1",
         "laravel-vite-plugin": "^3.2.0",
         "lucide-react": "^0.475.0",
         "maplibre-gl": "^5.24.0",

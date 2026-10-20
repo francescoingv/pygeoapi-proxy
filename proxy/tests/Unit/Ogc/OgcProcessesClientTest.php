@@ -33,7 +33,7 @@ test('it fetches the landing page with json format', function () {
 
 test('it fetches the process list', function () {
     Http::fake([
-        'https://voice.pi.ingv.it/geoinquire/processes?f=json' => Http::response(ogcFixture('processes')),
+        'https://voice.pi.ingv.it/geoinquire/processes?f=json&lang=it' => Http::response(ogcFixture('processes')),
     ]);
 
     $data = app(OgcProcessesClient::class)->processes();
@@ -45,7 +45,7 @@ test('it fetches the process list', function () {
 
 test('it fetches a process description', function () {
     Http::fake([
-        'https://voice.pi.ingv.it/geoinquire/processes/conduit?f=json' => Http::response(ogcFixture('process-conduit')),
+        'https://voice.pi.ingv.it/geoinquire/processes/conduit?f=json&lang=it' => Http::response(ogcFixture('process-conduit')),
     ]);
 
     $data = app(OgcProcessesClient::class)->process('conduit');

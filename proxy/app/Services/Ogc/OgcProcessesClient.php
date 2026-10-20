@@ -2,6 +2,7 @@
 
 namespace App\Services\Ogc;
 
+use App\Support\Ogc\OgcLanguage;
 use Illuminate\Http\Client\Factory as HttpFactory;
 use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Http\Client\Response;
@@ -23,17 +24,17 @@ class OgcProcessesClient
     /**
      * @return array<string, mixed>
      */
-    public function processes(): array
+    public function processes(string $language = 'it'): array
     {
-        return $this->getJson('/processes', ['f' => 'json']);
+        return $this->getJson('/processes', ['f' => 'json', 'lang' => OgcLanguage::normalize($language)]);
     }
 
     /**
      * @return array<string, mixed>
      */
-    public function process(string $processId): array
+    public function process(string $processId, string $language = 'it'): array
     {
-        return $this->getJson("/processes/{$processId}", ['f' => 'json']);
+        return $this->getJson("/processes/{$processId}", ['f' => 'json', 'lang' => OgcLanguage::normalize($language)]);
     }
 
     /**

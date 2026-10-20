@@ -21,6 +21,7 @@ use App\Services\Ogc\CsvPreviewBuilder;
 use App\Services\Ogc\OgcProcessCache;
 use App\Services\Ogc\OgcTextNormalizer;
 use App\Services\Ogc\ProcessExecutionInputReview;
+use App\Services\Ogc\ProcessExecutionLocalization;
 use App\Services\Ogc\ProcessInputPayloadBuilder;
 use App\Services\Ogc\ProcessInputValidator;
 use App\Services\Ogc\ProcessInputValueNormalizer;
@@ -40,6 +41,8 @@ use Inertia\Response;
 
 class ProcessExecutionController extends Controller
 {
+    public function __construct(private ProcessExecutionLocalization $localization) {}
+
     public function index(TableIndexRequest $request, UserTableSettings $preferences, JobTableQuery $tableQuery): Response
     {
         $user = $request->user();
@@ -172,8 +175,7 @@ class ProcessExecutionController extends Controller
             'results' => $processExecution->results->map(fn (ProcessExecutionResult $result): array => [
                 'id' => $result->id,
                 'outputId' => $result->output_id,
-                'title' => $textNormalizer->normalize($result->title),
-                'description' => $textNormalizer->normalize($result->description),
+                ...$this->localization->resultMetadata($processExecution, $result),
                 'mediaType' => $result->media_type,
                 'cacheStatus' => $result->cache_status->value,
                 'preview' => $this->previewForResult($result, $csvPreviewBuilder),
@@ -213,7 +215,7 @@ class ProcessExecutionController extends Controller
     ): array {
         $metadata = [];
 
-        foreach ($processExecution->process_outputs ?? [] as $outputId => $output) {
+        foreach ($this->localization->outputs($processExecution) as $outputId => $output) {
             if (! is_array($output)) {
                 continue;
             }
@@ -476,9 +478,9 @@ class ProcessExecutionController extends Controller
         $payload = [
             'id' => $execution->id,
             'name' => $execution->name,
-            'displayName' => $execution->displayName(),
+            'displayName' => $this->localization->displayName($execution),
             'processId' => $execution->process_id,
-            'processTitle' => $execution->process_title,
+            'processTitle' => $this->localization->title($execution),
             'status' => $execution->status->value,
             'progress' => $execution->progress,
             'message' => $execution->message,

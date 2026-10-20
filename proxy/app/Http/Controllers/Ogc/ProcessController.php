@@ -9,7 +9,6 @@ use App\Services\Ogc\OgcProcessCacheWarmupDispatcher;
 use App\Services\Ogc\ProcessExecutionInputPrefill;
 use App\Services\Ogc\ProcessSchemaNormalizer;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\App;
 use Illuminate\Support\Facades\Gate;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -58,9 +57,7 @@ class ProcessController extends Controller
         }
 
         $formSchema = $this->normalizer->normalize($description);
-        $formSchema['examplePayload'] = App::environment(['local', 'development'])
-            ? $this->examplePayload($description)
-            : null;
+        $formSchema['examples'] = $this->examples($description, $formSchema['fields']);
 
         return Inertia::render('processes/show', [
             'process' => $description,
@@ -96,10 +93,13 @@ class ProcessController extends Controller
 
     /**
      * @param  array<string, mixed>  $description
-     * @return array<string, mixed>|null
+     * @param  array<string, array<string, mixed>>  $fields
+     * @return list<array{id: string, title: string, description: ?string, inputs: array<string, mixed>}>
      */
-    private function examplePayload(array $description): ?array
+    private function examples(array $description, array $fields): array
     {
+        $compatibleExamples = [];
+
         foreach (['examples', 'example'] as $key) {
             $examples = $description[$key] ?? [];
 
@@ -108,16 +108,45 @@ class ProcessController extends Controller
             }
 
             foreach ($examples as $example) {
-                if (
-                    is_array($example)
-                    && isset($example['payload_example'])
-                    && is_array($example['payload_example'])
-                ) {
-                    return $example['payload_example'];
+                if (! is_array($example)) {
+                    continue;
+                }
+
+                $hasMetadata = array_key_exists('value', $example);
+                $payloads = $hasMetadata ? ['value' => $example['value']] : $example;
+
+                foreach ($payloads as $name => $payload) {
+                    $id = $hasMetadata ? ($example['id'] ?? null) : $name;
+
+                    if (! is_string($id) || trim($id) === '' || ! is_array($payload)) {
+                        continue;
+                    }
+
+                    $inputs = $payload['inputs'] ?? null;
+
+                    if (! is_array($inputs) || array_is_list($inputs)) {
+                        continue;
+                    }
+
+                    $inputs = array_intersect_key($inputs, $fields);
+
+                    if ($inputs === []) {
+                        continue;
+                    }
+
+                    $title = $hasMetadata ? ($example['title'] ?? null) : $name;
+                    $exampleDescription = $hasMetadata ? ($example['description'] ?? null) : null;
+
+                    $compatibleExamples[] = [
+                        'id' => $id,
+                        'title' => is_string($title) && trim($title) !== '' ? $title : $id,
+                        'description' => is_string($exampleDescription) ? $exampleDescription : null,
+                        'inputs' => $inputs,
+                    ];
                 }
             }
         }
 
-        return null;
+        return $compatibleExamples;
     }
 }

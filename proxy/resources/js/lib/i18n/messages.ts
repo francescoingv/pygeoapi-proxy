@@ -756,7 +756,14 @@ const it = {
         outputCountOne: '{count} output',
         outputFormat: 'Formato output',
         outputs: 'Output',
-        prefillTestData: 'PRECOMPILA DATI TEST',
+        serviceExample: 'Esempi proposti',
+        clearFields: 'Svuota campi',
+        clearFieldsTitle: 'Svuotare i campi?',
+        clearFieldsDescription:
+            'Gli input verranno svuotati e i loro eventuali valori predefiniti ripristinati.',
+        chooseExample: 'Seleziona un esempio',
+        serviceExampleDescription:
+            'La selezione sostituisce gli input del modulo con quelli dell’esempio.',
         previewUnavailable: 'Anteprima non disponibile.',
         previewUnavailableMedia:
             'Anteprima non disponibile per questo tipo di media.',
@@ -1648,7 +1655,14 @@ const en = {
         outputCountOne: '{count} output',
         outputFormat: 'Output format',
         outputs: 'Outputs',
-        prefillTestData: 'PREFILL TEST DATA',
+        serviceExample: 'Suggested examples',
+        clearFields: 'Clear fields',
+        clearFieldsTitle: 'Clear the fields?',
+        clearFieldsDescription:
+            'The inputs will be cleared and any default input values restored.',
+        chooseExample: 'Select an example',
+        serviceExampleDescription:
+            'Selecting an example replaces the form inputs with the example values.',
         previewUnavailable: 'Preview unavailable.',
         previewUnavailableMedia: 'Preview unavailable for this media type.',
         copyRawPayload: 'Copy raw content',

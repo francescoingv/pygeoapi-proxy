@@ -7,6 +7,7 @@ use App\Support\AuthFeatures;
 use App\Support\UserTableSettings;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
+use Inertia\Inertia;
 use Inertia\Middleware;
 use Laravel\Fortify\Features;
 
@@ -45,7 +46,7 @@ class HandleInertiaRequests extends Middleware
         return [
             ...parent::share($request),
             'name' => config('app.name'),
-            'language' => app()->getLocale(),
+            'language' => Inertia::always(app()->getLocale()),
             'support' => fn (): array => $this->support($request),
             'auth' => [
                 'user' => $this->user($request),

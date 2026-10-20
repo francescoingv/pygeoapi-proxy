@@ -8,7 +8,7 @@ class ProcessExecutionInputReview
 {
     public function __construct(
         private ProcessExecutionInputSnapshot $snapshots,
-        private OgcProcessCache $cache,
+        private ProcessExecutionLocalization $localization,
         private ProcessSchemaNormalizer $normalizer,
     ) {}
 
@@ -25,13 +25,14 @@ class ProcessExecutionInputReview
         $fields = $legacy ? [] : ($snapshot['fields'] ?? []);
 
         if ($legacy) {
-            $process = $this->cache->process($execution->process_id);
+            $process = $this->localization->process($execution);
 
             if ($process !== null && ($process['version'] ?? null) === $execution->process_version) {
                 $fields = $this->normalizer->normalize($process)['fields'];
             }
         }
 
+        $fields = $this->localization->fields($execution, $fields);
         $unavailable = $inputs === null ? array_keys($fields) : [];
         $availableInputs = [];
 

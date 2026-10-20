@@ -4,6 +4,7 @@ use App\Actions\Support\SubmitSupportEmail;
 use App\Jobs\SendSupportEmail;
 use App\Models\User;
 use App\Services\Support\SupportContactManager;
+use Carbon\CarbonImmutable;
 use Illuminate\Contracts\Encryption\EncryptException;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Crypt;
@@ -27,8 +28,8 @@ function supportSubmissionData(array $overrides = []): array
     ], $overrides);
 }
 
-test('support acceptance queues one encrypted job with private files and a seven day deadline', function () {
-    $this->freezeTime();
+test('support acceptance queues one encrypted job with private files and a seven day deadline', function (string $acceptedAt, string $expectedExpiry) {
+    $this->travelTo(CarbonImmutable::parse($acceptedAt));
     Storage::fake('local');
     $account = User::factory()->create(['email' => 'account@example.org']);
     app(SupportContactManager::class)->assign(User::factory()->admin()->create()->id);
@@ -44,14 +45,19 @@ test('support acceptance queues one encrypted job with private files and a seven
     $payload = json_decode($row->payload, true, flags: JSON_THROW_ON_ERROR);
     $job = unserialize(Crypt::decrypt($payload['data']['command']), ['allowed_classes' => true]);
     expect($job)->toBeInstanceOf(SendSupportEmail::class);
-    expect($job->data->expiresAt)->toBe(now()->addDays(7)->timestamp);
+    expect($job->data->acceptedAt)->toBe(CarbonImmutable::parse($acceptedAt)->timestamp);
+    expect($job->data->expiresAt)->toBe(CarbonImmutable::parse($expectedExpiry)->timestamp);
     expect($job->data->account)->toBe(['id' => $account->id, 'name' => $account->name, 'email' => 'account@example.org']);
     expect($payload['support_mail'])->toBe(['id' => $job->data->id, 'expires_at' => $job->data->expiresAt]);
     expect($job->data->attachments[0]['path'])->toStartWith('support-mail/'.$job->data->id.'/')->not->toContain('trace.log');
     Storage::disk('local')->assertExists($job->data->attachments[0]['path']);
     $manifest = Storage::disk('local')->get('support-mail/'.$job->data->id.'/manifest.json');
     expect($manifest)->not->toContain('reply@example.org', 'Private support subject', 'Private diagnostic description');
-});
+})->with([
+    'ordinary week' => ['2026-02-10T10:00:00+01:00', '2026-02-17T10:00:00+01:00'],
+    'daylight saving starts' => ['2026-03-25T10:00:00+01:00', '2026-04-01T11:00:00+02:00'],
+    'daylight saving ends' => ['2026-10-20T10:00:00+02:00', '2026-10-27T09:00:00+01:00'],
+]);
 
 test('a request without attachments still has expiring operational metadata', function () {
     Storage::fake('local');

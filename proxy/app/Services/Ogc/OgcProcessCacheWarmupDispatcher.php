@@ -3,6 +3,7 @@
 namespace App\Services\Ogc;
 
 use App\Jobs\Ogc\WarmOgcProcessCacheJob;
+use App\Support\Ogc\OgcLanguage;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 use Throwable;
@@ -47,23 +48,36 @@ class OgcProcessCacheWarmupDispatcher
 
     private function dispatchWarmup(string $source): bool
     {
-        try {
-            if (! Cache::add(OgcProcessCache::WarmupDispatchedKey, true, self::DispatchFlagTtlSeconds)) {
-                return false;
+        $dispatched = false;
+
+        foreach (OgcLanguage::Supported as $language) {
+            $key = OgcProcessCache::WarmupDispatchedKey.'.'.$language;
+
+            try {
+                if (! Cache::add($key, true, self::DispatchFlagTtlSeconds)) {
+                    continue;
+                }
+
+                try {
+                    WarmOgcProcessCacheJob::dispatch($language);
+                } catch (Throwable $exception) {
+                    Cache::forget($key);
+
+                    throw $exception;
+                }
+
+                $dispatched = true;
+            } catch (Throwable $exception) {
+                Log::warning('Unable to dispatch OGC process cache warm-up.', [
+                    'source' => $source,
+                    'language' => $language,
+                    'exception' => $exception::class,
+                    'message' => $exception->getMessage(),
+                ]);
             }
-
-            WarmOgcProcessCacheJob::dispatch();
-
-            return true;
-        } catch (Throwable $exception) {
-            Log::warning('Unable to dispatch OGC process cache warm-up.', [
-                'source' => $source,
-                'exception' => $exception::class,
-                'message' => $exception->getMessage(),
-            ]);
-
-            return false;
         }
+
+        return $dispatched;
     }
 
     private function currentCommand(): ?string

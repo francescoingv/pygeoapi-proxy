@@ -1,3 +1,4 @@
+import { router } from '@inertiajs/react';
 import { useSyncExternalStore } from 'react';
 import {
     defaultLanguage,
@@ -13,8 +14,62 @@ export type UseLanguageReturn = {
     readonly updateLanguage: (language: Language) => void;
 };
 
+type LanguageRefresh = {
+    language: Language;
+    url: string;
+    cancel?: () => void;
+};
+
 const listeners = new Set<() => void>();
 let currentLanguage: Language = defaultLanguage;
+let stopNavigationListener: (() => void) | undefined;
+let activeRefresh: LanguageRefresh | undefined;
+
+const reconcileServerLanguage = (language: unknown): void => {
+    if (isLanguage(language) && language !== currentLanguage) {
+        refreshServerLanguage();
+    }
+};
+
+const refreshServerLanguage = (): void => {
+    if (
+        typeof window === 'undefined' ||
+        (activeRefresh?.language === currentLanguage &&
+            activeRefresh.url === window.location.href)
+    ) {
+        return;
+    }
+
+    const previousRefresh = activeRefresh;
+    const refresh: LanguageRefresh = {
+        language: currentLanguage,
+        url: window.location.href,
+    };
+    activeRefresh = refresh;
+    previousRefresh?.cancel?.();
+    router.flushAll();
+    router.reload({
+        onCancelToken: (token) => {
+            refresh.cancel = () => token.cancel();
+
+            if (activeRefresh !== refresh) {
+                token.cancel();
+            }
+        },
+        onSuccess: () => {
+            if (activeRefresh !== refresh) {
+                return;
+            }
+
+            activeRefresh = undefined;
+        },
+        onFinish: () => {
+            if (activeRefresh === refresh) {
+                activeRefresh = undefined;
+            }
+        },
+    });
+};
 
 const subscribe = (callback: () => void) => {
     listeners.add(callback);
@@ -103,9 +158,23 @@ const initialLanguage = (): Language => {
 };
 
 export function initializeLanguage(): void {
+    stopNavigationListener?.();
+    activeRefresh?.cancel?.();
+    activeRefresh = undefined;
     currentLanguage = normalizeLanguage(initialLanguage());
     storeLanguage(currentLanguage);
     applyLanguage(currentLanguage);
+
+    const stopNavigate = router.on('navigate', ({ detail: { page } }) => {
+        reconcileServerLanguage(page.props.language);
+    });
+    const stopSuccess = router.on('success', ({ detail: { page } }) => {
+        reconcileServerLanguage(page.props.language);
+    });
+    stopNavigationListener = () => {
+        stopNavigate();
+        stopSuccess();
+    };
 }
 
 export function useLanguage(): UseLanguageReturn {
@@ -116,10 +185,17 @@ export function useLanguage(): UseLanguageReturn {
     );
 
     const updateLanguage = (nextLanguage: Language): void => {
-        currentLanguage = normalizeLanguage(nextLanguage);
+        const language = normalizeLanguage(nextLanguage);
+
+        if (language === currentLanguage) {
+            return;
+        }
+
+        currentLanguage = language;
         storeLanguage(currentLanguage);
         applyLanguage(currentLanguage);
         notify();
+        refreshServerLanguage();
     };
 
     return {

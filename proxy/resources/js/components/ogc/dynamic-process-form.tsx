@@ -1,8 +1,9 @@
 import { useForm } from '@inertiajs/react';
-import { PlayIcon, WandSparklesIcon } from 'lucide-react';
-import { useRef } from 'react';
+import { PlayIcon } from 'lucide-react';
+import { useRef, useState } from 'react';
 import { toast } from 'sonner';
 
+import ClearProcessFormButton from '@/components/ogc/clear-process-form-button';
 import {
     OgcFieldError,
     OgcValidationControl,
@@ -14,6 +15,7 @@ import {
     InputSupportToggle,
 } from '@/components/ogc/input-support';
 import { JobNoteEditor } from '@/components/ogc/job-note-editor';
+import ProcessDescription from '@/components/ogc/process-description';
 import ProcessOutputSelector from '@/components/ogc/process-output-selector';
 import SchemaFieldRenderer from '@/components/ogc/schema-field-renderer';
 import { Button } from '@/components/ui/button';
@@ -74,12 +76,16 @@ type FormData = {
 export default function DynamicProcessForm({
     schema,
     inputPrefill,
+    submissionDisabled = false,
 }: {
     schema: OgcFormSchema;
     inputPrefill?: OgcInputPrefill | null;
+    submissionDisabled?: boolean;
 }) {
     const { t } = useTranslation();
     const formRef = useRef<HTMLFormElement>(null);
+    const [selectedExample, setSelectedExample] = useState('');
+    const [inputResetVersion, setInputResetVersion] = useState(0);
     const {
         data,
         setData,
@@ -120,27 +126,42 @@ export default function DynamicProcessForm({
     }
 
     function setInput(name: string, update: unknown) {
+        setSelectedExample('');
         setData((currentData) => ({
             ...currentData,
             inputs: updateFormProperty(currentData.inputs, name, update),
         }));
     }
 
-    function applyExamplePayload() {
-        const examplePayload = schema.examplePayload;
+    function applyExample(value: string) {
+        const example = schema.examples?.find(
+            (example) => example.id === value,
+        );
 
-        if (!examplePayload) {
+        if (!example || processing || submissionDisabled) {
+            return;
+        }
+
+        setSelectedExample(value);
+        setData((currentData) => ({
+            ...currentData,
+            inputs: initialInputValues(schema.fields, example.inputs),
+        }));
+        validation.valuesReplaced('inputs');
+    }
+
+    function clearInputs() {
+        if (processing || submissionDisabled) {
             return;
         }
 
         setData((currentData) => ({
             ...currentData,
-            inputs: initialInputValues(
-                schema.fields,
-                examplePayload.inputs ?? {},
-            ),
+            inputs: initialInputValues(schema.fields),
         }));
-        validation.valuesReplaced('inputs');
+        setSelectedExample('');
+        setInputResetVersion((version) => version + 1);
+        validation.resetPathPrefix('inputs');
     }
 
     return (
@@ -151,6 +172,10 @@ export default function DynamicProcessForm({
             onChange={validation.handleFormChange}
             onSubmit={(event) => {
                 event.preventDefault();
+
+                if (submissionDisabled) {
+                    return;
+                }
 
                 if (!validation.validateForm()) {
                     notifyValidationFailure();
@@ -172,6 +197,14 @@ export default function DynamicProcessForm({
                 });
             }}
         >
+            <ProcessDescription
+                description={schema.description}
+                examples={schema.examples}
+                selectedExample={selectedExample}
+                onExampleChange={applyExample}
+                disabled={processing || submissionDisabled}
+            />
+
             <Card className="min-w-0">
                 <CardHeader>
                     <CardTitle>{t('jobs.processName')}</CardTitle>
@@ -228,22 +261,17 @@ export default function DynamicProcessForm({
                     <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                         <CardTitle>{t('ogc.inputs')}</CardTitle>
                         <div className="flex min-w-0 flex-wrap items-center justify-end gap-2 self-end">
-                            {schema.examplePayload ? (
-                                <Button
-                                    type="button"
-                                    variant="outline"
-                                    size="sm"
-                                    className="border-warning/30 bg-highlight/15 text-warning-emphasis hover:bg-highlight/25 hover:text-warning-emphasis focus-visible:ring-warning"
-                                    onClick={applyExamplePayload}
-                                >
-                                    <WandSparklesIcon data-icon="inline-start" />
-                                    {t('ogc.prefillTestData')}
-                                </Button>
-                            ) : null}
+                            <ClearProcessFormButton
+                                onConfirm={clearInputs}
+                                disabled={processing || submissionDisabled}
+                            />
                             <InputSupportToggle />
                         </div>
                     </CardHeader>
-                    <CardContent className="flex min-w-0 flex-col gap-4">
+                    <CardContent
+                        key={inputResetVersion}
+                        className="flex min-w-0 flex-col gap-4"
+                    >
                         {Object.entries(schema.fields).map(([name, field]) => (
                             <SchemaFieldRenderer
                                 key={name}
@@ -287,7 +315,7 @@ export default function DynamicProcessForm({
 
             <Button
                 type="submit"
-                disabled={processing}
+                disabled={processing || submissionDisabled}
                 className="w-full sm:w-fit sm:self-end"
             >
                 {processing ? (

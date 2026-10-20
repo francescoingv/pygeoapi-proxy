@@ -8,6 +8,7 @@ use App\Http\Requests\TableIndexRequest;
 use App\Models\ProcessExecution;
 use App\Models\User;
 use App\Services\JobTableQuery;
+use App\Services\Ogc\ProcessExecutionLocalization;
 use App\Support\UserTableSettings;
 use Illuminate\Contracts\Encryption\DecryptException;
 use Illuminate\Http\Request;
@@ -17,7 +18,7 @@ use Inertia\Response;
 
 class JobController extends Controller
 {
-    public function index(TableIndexRequest $request, UserTableSettings $preferences, JobTableQuery $tableQuery): Response
+    public function index(TableIndexRequest $request, UserTableSettings $preferences, JobTableQuery $tableQuery, ProcessExecutionLocalization $localization): Response
     {
         $viewer = $request->user();
         assert($viewer instanceof User);
@@ -42,10 +43,10 @@ class JobController extends Controller
             ->through(fn (ProcessExecution $execution): array => [
                 'id' => $execution->id,
                 'name' => $execution->name,
-                'displayName' => $execution->displayName(),
+                'displayName' => $localization->displayName($execution),
                 'remoteJobId' => $execution->remote_job_id,
                 'processId' => $execution->process_id,
-                'processTitle' => $execution->process_title,
+                'processTitle' => $localization->title($execution),
                 'status' => $execution->status->value,
                 'progress' => $execution->progress,
                 'message' => $execution->message,

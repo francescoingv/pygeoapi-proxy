@@ -1,17 +1,11 @@
 import { Head } from '@inertiajs/react';
-import { ChevronDownIcon, CopyCheckIcon, FileTextIcon } from 'lucide-react';
+import { CopyCheckIcon } from 'lucide-react';
 import { useState } from 'react';
 
 import { ContentTransition } from '@/components/content-transition';
 import CacheWarmupPoller from '@/components/ogc/cache-warmup-poller';
 import DynamicProcessForm from '@/components/ogc/dynamic-process-form';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { Button } from '@/components/ui/button';
-import {
-    Collapsible,
-    CollapsibleContent,
-    CollapsibleTrigger,
-} from '@/components/ui/collapsible';
 import { Spinner } from '@/components/ui/spinner';
 import { useTranslation } from '@/hooks/use-translation';
 import { formatJobDate } from '@/lib/jobs';
@@ -71,39 +65,6 @@ export default function ProcessShow({
                         </p>
                     ) : null}
                 </div>
-
-                {visibleSchema.description ? (
-                    <Collapsible className="w-full min-w-0 rounded-md border bg-card text-card-foreground transition-colors data-[state=open]:border-primary/25 motion-reduce:transition-none">
-                        <CollapsibleTrigger asChild>
-                            <Button
-                                type="button"
-                                variant="ghost"
-                                className="group h-auto w-full justify-between gap-3 px-3 py-2.5 text-left whitespace-normal"
-                            >
-                                <span className="flex min-w-0 items-center gap-2">
-                                    <FileTextIcon
-                                        aria-hidden="true"
-                                        data-icon="inline-start"
-                                        className="text-primary"
-                                    />
-                                    {t('ogc.serviceDescription')}
-                                </span>
-                                <ChevronDownIcon
-                                    aria-hidden="true"
-                                    data-icon="inline-end"
-                                    className="text-muted-foreground transition-transform duration-200 group-data-[state=open]:rotate-180 motion-reduce:transition-none"
-                                />
-                            </Button>
-                        </CollapsibleTrigger>
-                        <CollapsibleContent>
-                            <div className="mx-3 border-t py-3">
-                                <p className="w-full min-w-0 text-sm leading-relaxed break-words whitespace-pre-wrap text-muted-foreground">
-                                    {visibleSchema.description}
-                                </p>
-                            </div>
-                        </CollapsibleContent>
-                    </Collapsible>
-                ) : null}
 
                 <ContentTransition default="none" update="form-layout">
                     <div className="flex min-w-0 flex-col gap-4">

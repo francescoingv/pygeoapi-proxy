@@ -237,7 +237,7 @@ test('authenticated users trigger warm-up when process detail cache is missing',
     Bus::assertDispatched(WarmOgcProcessCacheJob::class);
 });
 
-test('process detail exposes example payload for local environments', function () {
+test('process detail exposes named examples for local environments', function () {
     app()->detectEnvironment(fn (): string => 'local');
     app(OgcProcessCache::class)->putProcess('conduit', ogcFixture('process-conduit'));
 
@@ -247,11 +247,12 @@ test('process detail exposes example payload for local environments', function (
         ->assertInertia(fn ($page) => $page
             ->component('processes/show')
             ->where('processStatus', 'ready')
-            ->where('formSchema.examplePayload.inputs.melt_composition.value.sio2', 0.7669)
-            ->where('formSchema.examplePayload.outputs.gas.transmissionMode', 'value'));
+            ->has('formSchema.examples', 1)
+            ->where('formSchema.examples.0.title', 'payload_example')
+            ->where('formSchema.examples.0.inputs.melt_composition.value.sio2', 0.7669));
 });
 
-test('process detail hides example payload outside local environments', function () {
+test('process detail exposes named examples outside local environments', function () {
     app()->detectEnvironment(fn (): string => 'production');
     app(OgcProcessCache::class)->putProcess('conduit', ogcFixture('process-conduit'));
 
@@ -261,5 +262,145 @@ test('process detail hides example payload outside local environments', function
         ->assertInertia(fn ($page) => $page
             ->component('processes/show')
             ->where('processStatus', 'ready')
-            ->where('formSchema.examplePayload', null));
+            ->has('formSchema.examples', 1)
+            ->where('formSchema.examples.0.title', 'payload_example')
+            ->where('formSchema.examples.0.inputs.melt_composition.value.sio2', 0.7669));
+});
+
+test('process examples retain compatible inputs from every named payload and ignore curl commands', function () {
+    $description = ogcFixture('process-solwcad');
+    $firstPayload = $description['examples'][0]['payload_example'];
+    $firstPayload['inputs']['pippo'] = 'ignored';
+    $description['examples'][0] = ['payload_example_1' => $firstPayload];
+    $description['examples'][] = [
+        'payload_example_2' => [
+            'inputs' => [
+                'swinput.data' => ['value' => ['kl' => 1, 'ndat1' => 1, 'iopen' => 0]],
+                'sw.data' => [['5.d8', '1323.15', '0.1']],
+            ],
+            'outputs' => ['solwcad_out' => ['transmissionMode' => 'value']],
+        ],
+    ];
+    app(OgcProcessCache::class)->putProcess('solwcad', $description);
+
+    $this->actingAs(User::factory()->create())
+        ->get('/processes/solwcad')
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->has('formSchema.examples', 2)
+            ->where('formSchema.examples.0.title', 'payload_example_1')
+            ->where('formSchema.examples.0.inputs', fn ($inputs): bool => $inputs->keys()->all() === ['swinput.data', 'sw.data']
+                && $inputs['swinput.data']['value']['kl'] === 0
+                && $inputs['sw.data'][0][0] === '1.00d8')
+            ->where('formSchema.examples.1.title', 'payload_example_2')
+            ->where('formSchema.examples.1.inputs', fn ($inputs): bool => $inputs->all() === [
+                'swinput.data' => ['value' => ['kl' => 1, 'ndat1' => 1, 'iopen' => 0]],
+                'sw.data' => [['5.d8', '1323.15', '0.1']],
+            ]));
+});
+
+test('process examples skip malformed payloads and payloads without known inputs', function () {
+    $description = ogcFixture('process-pybox');
+    $description['examples'] = [
+        null,
+        'curl -X POST /execution',
+        ['no_inputs' => ['outputs' => []]],
+        ['string_inputs' => ['inputs' => 'not an object']],
+        ['list_inputs' => ['inputs' => [40.82, 14.428]]],
+        ['unknown_inputs' => ['inputs' => ['pippo' => 42]]],
+        ['empty_inputs' => ['inputs' => []]],
+        [
+            'custom_example' => ['inputs' => ['lat' => 0, 'pippo' => 42]],
+            'another_example' => ['inputs' => ['lon' => 14.428]],
+        ],
+    ];
+    app(OgcProcessCache::class)->putProcess('pybox', $description);
+
+    $this->actingAs(User::factory()->create())
+        ->get('/processes/pybox')
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->where('formSchema.examples', [
+                ['id' => 'custom_example', 'title' => 'custom_example', 'description' => null, 'inputs' => ['lat' => 0]],
+                ['id' => 'another_example', 'title' => 'another_example', 'description' => null, 'inputs' => ['lon' => 14.428]],
+            ]));
+});
+
+test('process detail handles missing or invalid example collections', function (mixed $examples) {
+    $description = ogcFixture('process-pybox');
+    $description['examples'] = $examples;
+    app(OgcProcessCache::class)->putProcess('pybox', $description);
+
+    $this->actingAs(User::factory()->create())
+        ->get('/processes/pybox')
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->where('formSchema.examples', []));
+})->with([
+    'null' => [null],
+    'string' => ['curl -X POST /execution'],
+    'empty' => [[]],
+]);
+
+test('process detail also accepts the legacy example collection', function () {
+    $description = ogcFixture('process-pybox');
+    $description['example'] = $description['examples'];
+    unset($description['examples']);
+    app(OgcProcessCache::class)->putProcess('pybox', $description);
+
+    $this->actingAs(User::factory()->create())
+        ->get('/processes/pybox')
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->has('formSchema.examples', 1)
+            ->where('formSchema.examples.0.inputs.lat', 40.82));
+});
+
+test('process examples use titles and descriptions from payload metadata and exclude string values', function () {
+    $description = ogcFixture('process-pybox');
+    $description['examples'] = [
+        [
+            'id' => 'payload_1',
+            'title' => 'Simple payload example N°1',
+            'description' => 'A simple execution payload.',
+            'value' => ['inputs' => ['dt' => 0.5, 'margin' => 5000, 'unknown_input' => 42]],
+        ],
+        [
+            'id' => 'payload_2',
+            'title' => 'Simple payload example N°2',
+            'description' => 'A simple alternative execution payload.',
+            'value' => ['inputs' => ['dt' => 0.3, 'margin' => 1000]],
+        ],
+        [
+            'id' => 'curlRequest_1',
+            'title' => 'Simple curl request',
+            'description' => 'A simple request via curl command.',
+            'value' => 'curl -X POST /execution',
+        ],
+        [
+            'id' => 'unrelated_payload',
+            'title' => 'Unrelated payload',
+            'value' => ['inputs' => ['unknown_input' => 42]],
+        ],
+    ];
+    app(OgcProcessCache::class)->putProcess('pybox', $description);
+
+    $this->actingAs(User::factory()->create())
+        ->get('/processes/pybox')
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->where('formSchema.examples', [
+                [
+                    'id' => 'payload_1',
+                    'title' => 'Simple payload example N°1',
+                    'description' => 'A simple execution payload.',
+                    'inputs' => ['dt' => 0.5, 'margin' => 5000],
+                ],
+                [
+                    'id' => 'payload_2',
+                    'title' => 'Simple payload example N°2',
+                    'description' => 'A simple alternative execution payload.',
+                    'inputs' => ['dt' => 0.3, 'margin' => 1000],
+                ],
+            ]));
 });

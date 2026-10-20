@@ -92,11 +92,11 @@ export type OgcNormalizedOutput = {
     >;
 };
 
-export type OgcExamplePayload = {
-    inputs?: Record<string, unknown>;
-    outputs?:
-        | Record<string, { transmissionMode?: string } | string | unknown>
-        | string[];
+export type OgcProcessExample = {
+    id: string;
+    title: string;
+    description?: string | null;
+    inputs: Record<string, unknown>;
 };
 
 export type OgcFormSchema = {
@@ -109,7 +109,7 @@ export type OgcFormSchema = {
     fields: Record<string, OgcNormalizedField>;
     inputValidationSchema: Record<string, unknown>;
     outputs: Record<string, OgcNormalizedOutput>;
-    examplePayload?: OgcExamplePayload | null;
+    examples?: OgcProcessExample[];
 };
 
 export type OgcInputPrefill = {

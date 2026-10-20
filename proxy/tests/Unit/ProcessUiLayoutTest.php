@@ -48,15 +48,13 @@ test('process index cards are optimized for scanning', function () {
         ->not->toContain('<Card key={process.id}>');
 });
 
-test('process form exposes a local development prefill action', function () {
+test('process form exposes the service description and example selection', function () {
     $source = file_get_contents(getcwd().'/resources/js/components/ogc/dynamic-process-form.tsx');
 
     expect($source)
-        ->toContain('examplePayload')
-        ->toContain('ogc.prefillTestData')
-        ->toContain('applyExamplePayload')
-        ->toContain('WandSparklesIcon')
-        ->toContain('data-icon="inline-start"');
+        ->toContain('<ProcessDescription')
+        ->toContain('examples={schema.examples}')
+        ->toContain('onExampleChange={applyExample}');
 });
 
 test('geotiff previews render through the protected map tile route', function () {

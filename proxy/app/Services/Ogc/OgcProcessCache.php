@@ -2,6 +2,7 @@
 
 namespace App\Services\Ogc;
 
+use App\Support\Ogc\OgcLanguage;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 use Throwable;
@@ -21,109 +22,112 @@ class OgcProcessCache
     /**
      * @return array<string, mixed>|null
      */
-    public function catalog(): ?array
+    public function catalog(?string $language = null): ?array
     {
-        return $this->freshCatalog() ?? $this->latestCatalog();
+        return $this->freshCatalog($language) ?? $this->latestCatalog($language);
     }
 
     /**
      * @return array<string, mixed>|null
      */
-    public function freshCatalog(): ?array
+    public function freshCatalog(?string $language = null): ?array
     {
-        $catalog = Cache::get(self::CatalogKey);
+        $catalog = Cache::get($this->catalogKey($language));
 
         return is_array($catalog) ? $catalog : null;
     }
 
-    public function hasFreshCatalog(): bool
+    public function hasFreshCatalog(?string $language = null): bool
     {
-        return $this->freshCatalog() !== null;
+        return $this->freshCatalog($language) !== null;
     }
 
     /**
      * @return array<string, mixed>|null
      */
-    public function process(string $processId): ?array
+    public function process(string $processId, ?string $language = null): ?array
     {
-        return $this->freshProcess($processId) ?? $this->latestProcess($processId);
+        return $this->freshProcess($processId, $language) ?? $this->latestProcess($processId, $language);
     }
 
     /**
      * @return array<string, mixed>|null
      */
-    public function freshProcess(string $processId): ?array
+    public function freshProcess(string $processId, ?string $language = null): ?array
     {
-        $process = Cache::get($this->processKey($processId));
+        $process = Cache::get($this->processKey($processId, $language));
 
         return is_array($process) ? $process : null;
     }
 
-    public function hasFreshProcess(string $processId): bool
+    public function hasFreshProcess(string $processId, ?string $language = null): bool
     {
-        return $this->freshProcess($processId) !== null;
+        return $this->freshProcess($processId, $language) !== null;
     }
 
-    public function catalogLastUpdatedAt(): ?string
+    public function catalogLastUpdatedAt(?string $language = null): ?string
     {
-        return $this->latestUpdatedAt(self::LatestCatalogKey);
+        return $this->latestUpdatedAt($this->latestCatalogKey($language));
     }
 
-    public function processLastUpdatedAt(string $processId): ?string
+    public function processLastUpdatedAt(string $processId, ?string $language = null): ?string
     {
-        return $this->latestUpdatedAt($this->latestProcessKey($processId));
+        return $this->latestUpdatedAt($this->latestProcessKey($processId, $language));
     }
 
     /**
      * @param  array<string, mixed>  $catalog
      */
-    public function putCatalog(array $catalog, ?string $updatedAt = null): void
+    public function putCatalog(array $catalog, ?string $updatedAt = null, ?string $language = null): void
     {
         $updatedAt ??= now()->toIso8601String();
 
-        Cache::put(self::CatalogKey, $catalog, $this->ttl());
-        Cache::forever(self::LatestCatalogKey, $this->latestPayload($catalog, $updatedAt));
+        Cache::put($this->catalogKey($language), $catalog, $this->ttl());
+        Cache::forever($this->latestCatalogKey($language), $this->latestPayload($catalog, $updatedAt));
     }
 
     /**
      * @param  array<string, mixed>  $process
      */
-    public function putProcess(string $processId, array $process, ?string $updatedAt = null): void
+    public function putProcess(string $processId, array $process, ?string $updatedAt = null, ?string $language = null): void
     {
         $updatedAt ??= now()->toIso8601String();
 
-        Cache::put($this->processKey($processId), $process, $this->ttl());
-        Cache::forever($this->latestProcessKey($processId), $this->latestPayload($process, $updatedAt));
+        Cache::put($this->processKey($processId, $language), $process, $this->ttl());
+        Cache::forever($this->latestProcessKey($processId, $language), $this->latestPayload($process, $updatedAt));
     }
 
-    public function warm(): void
+    public function warm(string $language = 'it'): void
     {
+        $language = OgcLanguage::normalize($language);
         $loadedProcesses = 0;
 
         try {
-            $catalog = $this->client->processes();
+            $catalog = $this->client->processes($language);
             $processes = [];
 
             foreach ($this->processIds($catalog) as $processId) {
-                $processes[$processId] = $this->client->process($processId);
+                $processes[$processId] = $this->client->process($processId, $language);
                 $loadedProcesses++;
             }
 
             $updatedAt = now()->toIso8601String();
 
-            $this->putCatalog($catalog, $updatedAt);
+            $this->putCatalog($catalog, $updatedAt, $language);
 
             foreach ($processes as $processId => $process) {
-                $this->putProcess($processId, $process, $updatedAt);
+                $this->putProcess($processId, $process, $updatedAt, $language);
             }
 
             Log::info('OGC process cache warm-up completed.', [
                 'base_url' => $this->baseUrl(),
+                'language' => $language,
                 'process_count' => $loadedProcesses,
             ]);
         } catch (Throwable $exception) {
             Log::error('OGC process cache warm-up failed.', [
                 'base_url' => $this->baseUrl(),
+                'language' => $language,
                 'loaded_process_count' => $loadedProcesses,
                 'exception' => $exception::class,
                 'message' => $exception->getMessage(),
@@ -158,30 +162,40 @@ class OgcProcessCache
         return array_values(array_unique($ids));
     }
 
-    public function processKey(string $processId): string
+    public function catalogKey(?string $language = null): string
     {
-        return "ogc-processes.process.{$processId}";
+        return self::CatalogKey.'.'.$this->language($language);
     }
 
-    public function latestProcessKey(string $processId): string
+    public function latestCatalogKey(?string $language = null): string
     {
-        return "ogc-processes.latest.process.{$processId}";
+        return self::LatestCatalogKey.'.'.$this->language($language);
+    }
+
+    public function processKey(string $processId, ?string $language = null): string
+    {
+        return "ogc-processes.process.{$this->language($language)}.{$processId}";
+    }
+
+    public function latestProcessKey(string $processId, ?string $language = null): string
+    {
+        return "ogc-processes.latest.process.{$this->language($language)}.{$processId}";
     }
 
     /**
      * @return array<string, mixed>|null
      */
-    private function latestCatalog(): ?array
+    private function latestCatalog(?string $language): ?array
     {
-        return $this->latestData(self::LatestCatalogKey);
+        return $this->latestData($this->latestCatalogKey($language));
     }
 
     /**
      * @return array<string, mixed>|null
      */
-    private function latestProcess(string $processId): ?array
+    private function latestProcess(string $processId, ?string $language): ?array
     {
-        return $this->latestData($this->latestProcessKey($processId));
+        return $this->latestData($this->latestProcessKey($processId, $language));
     }
 
     /**
@@ -227,6 +241,11 @@ class OgcProcessCache
     private function ttl(): int
     {
         return max(1, (int) config('services.ogc_processes.cache_ttl', 300));
+    }
+
+    private function language(?string $language): string
+    {
+        return OgcLanguage::normalize($language ?? app()->getLocale());
     }
 
     private function baseUrl(): string

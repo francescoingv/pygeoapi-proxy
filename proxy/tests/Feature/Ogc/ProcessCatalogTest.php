@@ -56,7 +56,7 @@ test('authenticated users see the latest catalog without warming when fresh cach
     Carbon::setTestNow(CarbonImmutable::parse('2026-07-02 10:30:00'));
 
     app(OgcProcessCache::class)->putCatalog(ogcFixture('processes'));
-    Cache::forget(OgcProcessCache::CatalogKey);
+    Cache::forget(app(OgcProcessCache::class)->catalogKey());
 
     $this->actingAs(User::factory()->create())
         ->get('/processes')

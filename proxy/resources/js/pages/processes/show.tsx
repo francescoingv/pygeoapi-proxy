@@ -1,5 +1,6 @@
 import { Head } from '@inertiajs/react';
 import { ChevronDownIcon, CopyCheckIcon, FileTextIcon } from 'lucide-react';
+import { useState } from 'react';
 
 import { ContentTransition } from '@/components/content-transition';
 import CacheWarmupPoller from '@/components/ogc/cache-warmup-poller';
@@ -30,31 +31,21 @@ export default function ProcessShow({
 }) {
     const { t, locale } = useTranslation();
 
-    if (processStatus === 'warming' || formSchema === null) {
+    const [retainedSchema, setRetainedSchema] = useState(formSchema);
+
+    if (formSchema !== null && formSchema !== retainedSchema) {
+        setRetainedSchema(formSchema);
+    }
+
+    const visibleSchema = formSchema ?? retainedSchema;
+    const isPreparing = processStatus === 'warming' || formSchema === null;
+
+    if (visibleSchema === null) {
         return (
             <>
                 <Head title={t('ogc.processPreparing')} />
-                <CacheWarmupPoller
-                    interval={3000}
-                    only={[
-                        'process',
-                        'processStatus',
-                        'processLastUpdatedAt',
-                        'formSchema',
-                        'inputPrefill',
-                    ]}
-                />
-
                 <div className="flex min-w-0 flex-col gap-4 p-4">
-                    <Alert>
-                        <Spinner className="text-primary" />
-                        <AlertTitle>
-                            {t('ogc.processPreparingTitle')}
-                        </AlertTitle>
-                        <AlertDescription>
-                            {t('ogc.processPreparingDescription')}
-                        </AlertDescription>
-                    </Alert>
+                    <ProcessPreparation />
                 </div>
             </>
         );
@@ -62,11 +53,12 @@ export default function ProcessShow({
 
     return (
         <>
-            <Head title={formSchema.title} />
+            <Head title={visibleSchema.title} />
 
             <div className="flex min-w-0 flex-col gap-4 p-4">
+                {isPreparing ? <ProcessPreparation /> : null}
                 <div className="page-header flex min-w-0 flex-col gap-2">
-                    <h1 className="break-words">{formSchema.title}</h1>
+                    <h1 className="break-words">{visibleSchema.title}</h1>
                     {processLastUpdatedAt ? (
                         <p className="text-xs text-muted-foreground">
                             {t('ogc.servicesLastUpdatedAt', {
@@ -80,7 +72,7 @@ export default function ProcessShow({
                     ) : null}
                 </div>
 
-                {formSchema.description ? (
+                {visibleSchema.description ? (
                     <Collapsible className="w-full min-w-0 rounded-md border bg-card text-card-foreground transition-colors data-[state=open]:border-primary/25 motion-reduce:transition-none">
                         <CollapsibleTrigger asChild>
                             <Button
@@ -106,7 +98,7 @@ export default function ProcessShow({
                         <CollapsibleContent>
                             <div className="mx-3 border-t py-3">
                                 <p className="w-full min-w-0 text-sm leading-relaxed break-words whitespace-pre-wrap text-muted-foreground">
-                                    {formSchema.description}
+                                    {visibleSchema.description}
                                 </p>
                             </div>
                         </CollapsibleContent>
@@ -141,12 +133,39 @@ export default function ProcessShow({
                         ) : null}
 
                         <DynamicProcessForm
-                            schema={formSchema}
+                            schema={visibleSchema}
                             inputPrefill={inputPrefill}
+                            submissionDisabled={isPreparing}
                         />
                     </div>
                 </ContentTransition>
             </div>
+        </>
+    );
+}
+
+function ProcessPreparation() {
+    const { t } = useTranslation();
+
+    return (
+        <>
+            <CacheWarmupPoller
+                interval={3000}
+                only={[
+                    'process',
+                    'processStatus',
+                    'processLastUpdatedAt',
+                    'formSchema',
+                    'inputPrefill',
+                ]}
+            />
+            <Alert>
+                <Spinner className="text-primary" />
+                <AlertTitle>{t('ogc.processPreparingTitle')}</AlertTitle>
+                <AlertDescription>
+                    {t('ogc.processPreparingDescription')}
+                </AlertDescription>
+            </Alert>
         </>
     );
 }

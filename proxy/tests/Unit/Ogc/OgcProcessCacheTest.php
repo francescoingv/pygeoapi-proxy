@@ -5,8 +5,10 @@ use Carbon\Carbon;
 use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Request;
+use Illuminate\Http\Client\RequestException;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Sleep;
 use Tests\TestCase;
 
 uses(TestCase::class, RefreshDatabase::class);
@@ -26,26 +28,98 @@ afterEach(function () {
     Carbon::setTestNow();
 });
 
-test('it warms the catalog and every process description', function () {
-    Http::fake([
-        'https://voice.pi.ingv.it/geoinquire/processes?f=json' => Http::response(ogcFixture('processes')),
-        'https://voice.pi.ingv.it/geoinquire/processes/solwcad?f=json' => Http::response(ogcFixture('process-solwcad')),
-        'https://voice.pi.ingv.it/geoinquire/processes/conduit?f=json' => Http::response(ogcFixture('process-conduit')),
-        'https://voice.pi.ingv.it/geoinquire/processes/pybox?f=json' => Http::response(ogcFixture('process-pybox')),
-    ]);
+test('it warms only the requested language catalog and every process description', function (string $language, string $label) {
+    $catalog = ogcFixture('processes');
+    $catalog['processes'][0]['title'] = $label;
+    $responses = ["https://voice.pi.ingv.it/geoinquire/processes?f=json&lang={$language}" => Http::response($catalog)];
+
+    foreach (['solwcad', 'conduit', 'pybox'] as $processId) {
+        $process = ogcFixture("process-{$processId}");
+        $process['description'] = $label;
+        $responses["https://voice.pi.ingv.it/geoinquire/processes/{$processId}?f=json&lang={$language}"] = Http::response($process);
+    }
+
+    Http::fake($responses);
 
     $cache = app(OgcProcessCache::class);
 
-    $cache->warm();
+    $cache->warm($language);
 
-    expect($cache->catalog()['processes'])->toHaveCount(3)
-        ->and($cache->process('solwcad')['id'])->toBe('solwcad')
-        ->and($cache->process('conduit')['id'])->toBe('conduit')
-        ->and($cache->process('pybox')['id'])->toBe('pybox');
+    app()->setLocale($language);
+    expect($cache->catalog()['processes'])->toHaveCount(3);
+    expect($cache->catalog()['processes'][0]['title'])->toBe($label);
+    expect($cache->catalog($language === 'it' ? 'en' : 'it'))->toBeNull();
+
+    foreach (['solwcad', 'conduit', 'pybox'] as $processId) {
+        expect($cache->process($processId)['description'])->toBe($label);
+    }
 
     Http::assertSentCount(4);
-    Http::assertSent(fn (Request $request): bool => $request->url() === 'https://voice.pi.ingv.it/geoinquire/processes?f=json');
+    Http::assertSent(fn (Request $request): bool => $request->url() === "https://voice.pi.ingv.it/geoinquire/processes?f=json&lang={$language}");
+})->with([
+    'italian' => ['it', 'Italiano'],
+    'english' => ['en', 'English'],
+]);
+
+test('expired metadata and timestamps stay isolated by language', function () {
+    $this->travelTo(CarbonImmutable::parse('2026-10-20T10:00:00Z'));
+    $cache = app(OgcProcessCache::class);
+    app()->setLocale('it');
+    $cache->putCatalog(['processes' => [['id' => 'example', 'title' => 'Italiano']]]);
+    $cache->putProcess('example', ['id' => 'example', 'title' => 'Italiano']);
+    $this->travel(2)->minutes();
+    app()->setLocale('en');
+    $cache->putCatalog(['processes' => [['id' => 'example', 'title' => 'English']]]);
+    $cache->putProcess('example', ['id' => 'example', 'title' => 'English']);
+    $this->travel(6)->minutes();
+
+    app()->setLocale('it');
+    expect($cache->hasFreshCatalog())->toBeFalse();
+    expect($cache->hasFreshProcess('example'))->toBeFalse();
+    expect($cache->catalog()['processes'][0]['title'])->toBe('Italiano');
+    expect($cache->process('example')['title'])->toBe('Italiano');
+    expect(CarbonImmutable::parse($cache->catalogLastUpdatedAt())->utc()->toIso8601String())->toBe('2026-10-20T10:00:00+00:00');
+    expect(CarbonImmutable::parse($cache->processLastUpdatedAt('example'))->utc()->toIso8601String())->toBe('2026-10-20T10:00:00+00:00');
+    app()->setLocale('en');
+    expect($cache->catalog()['processes'][0]['title'])->toBe('English');
+    expect($cache->process('example')['title'])->toBe('English');
+    expect(CarbonImmutable::parse($cache->catalogLastUpdatedAt())->utc()->toIso8601String())->toBe('2026-10-20T10:02:00+00:00');
+    expect(CarbonImmutable::parse($cache->processLastUpdatedAt('example'))->utc()->toIso8601String())->toBe('2026-10-20T10:02:00+00:00');
+    $this->travelBack();
 });
+
+test('a failed language keeps its last complete cache while the other language refreshes', function (string $failedLanguage, string $successfulLanguage) {
+    Sleep::fake();
+    $cache = app(OgcProcessCache::class);
+    app()->setLocale($failedLanguage);
+    $cache->putCatalog(['processes' => [['id' => 'example', 'title' => 'Previous']]]);
+    $cache->putProcess('example', ['id' => 'example', 'title' => 'Previous']);
+    $responses = [];
+
+    foreach (['it', 'en'] as $language) {
+        $responses["https://voice.pi.ingv.it/geoinquire/processes?f=json&lang={$language}"] = Http::response([
+            'processes' => [['id' => 'example', 'title' => 'Updated']],
+        ]);
+        $responses["https://voice.pi.ingv.it/geoinquire/processes/example?f=json&lang={$language}"] = $language === $failedLanguage
+            ? Http::response([], 503)
+            : Http::response(['id' => 'example', 'title' => 'Updated']);
+    }
+
+    Http::fake($responses);
+
+    expect(fn () => $cache->warm($failedLanguage))->toThrow(RequestException::class);
+    $cache->warm($successfulLanguage);
+
+    app()->setLocale($failedLanguage);
+    expect($cache->catalog()['processes'][0]['title'])->toBe('Previous');
+    expect($cache->process('example')['title'])->toBe('Previous');
+    app()->setLocale($successfulLanguage);
+    expect($cache->catalog()['processes'][0]['title'])->toBe('Updated');
+    expect($cache->process('example')['title'])->toBe('Updated');
+})->with([
+    'italian failure' => ['it', 'en'],
+    'english failure' => ['en', 'it'],
+]);
 
 test('it returns null for missing catalog and process cache entries', function () {
     $cache = app(OgcProcessCache::class);
@@ -60,7 +134,7 @@ test('it serves the latest successful catalog when the fresh catalog expires', f
     $cache = app(OgcProcessCache::class);
 
     $cache->putCatalog(ogcFixture('processes'));
-    Cache::forget(OgcProcessCache::CatalogKey);
+    Cache::forget($cache->catalogKey());
 
     expect($cache->catalog()['processes'])->toHaveCount(3)
         ->and($cache->catalogLastUpdatedAt())->toBe(now()->toIso8601String());

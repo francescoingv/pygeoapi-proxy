@@ -74,9 +74,11 @@ type FormData = {
 export default function DynamicProcessForm({
     schema,
     inputPrefill,
+    submissionDisabled = false,
 }: {
     schema: OgcFormSchema;
     inputPrefill?: OgcInputPrefill | null;
+    submissionDisabled?: boolean;
 }) {
     const { t } = useTranslation();
     const formRef = useRef<HTMLFormElement>(null);
@@ -151,6 +153,10 @@ export default function DynamicProcessForm({
             onChange={validation.handleFormChange}
             onSubmit={(event) => {
                 event.preventDefault();
+
+                if (submissionDisabled) {
+                    return;
+                }
 
                 if (!validation.validateForm()) {
                     notifyValidationFailure();
@@ -287,7 +293,7 @@ export default function DynamicProcessForm({
 
             <Button
                 type="submit"
-                disabled={processing}
+                disabled={processing || submissionDisabled}
                 className="w-full sm:w-fit sm:self-end"
             >
                 {processing ? (

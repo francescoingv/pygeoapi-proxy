@@ -1,0 +1,44 @@
+{
+  "upload_type": "software",
+  "title": "proxygeoapi",
+  "creators": [
+    {
+      "name": "Baglini, Nicola",
+      "affiliation": "Net7",
+      "orcid": "0009-0001-2650-7745"
+    }
+  ],
+  "description": "<p><strong>proxygeoapi</strong> is an ordered, bilingual web interface for discovering and running remote OGC API - Processes services through pygeoapi, without exposing the processing backend directly to users.</p><p>Authenticated users can browse process definitions, complete forms generated from process schemas, submit asynchronous executions, monitor their status, and inspect results through tables, charts, and geospatial previews. The application provides persistent execution history and an English and Italian interface.</p><p>Built with Laravel and React/Inertia, proxygeoapi connects to a configurable remote pygeoapi service. Related software includes the EXPOSE (EXecutables for OGC API PrOcesses and Scientific Environments) platform and the pygeoapi framework.</p>",
+  "access_right": "open",
+  "license": "GPL-3.0-only",
+  "language": "eng",
+  "keywords": [
+    "pygeoapi",
+    "OGC API - Processes",
+    "geospatial processing",
+    "scientific workflows",
+    "asynchronous processing",
+    "bilingual interface",
+    "EXPOSE",
+    "Geo-INQUIRE"
+  ],
+  "related_identifiers": [
+    {
+      "relation": "references",
+      "identifier": "10.5281/zenodo.18892848",
+      "scheme": "doi",
+      "resource_type": "software"
+    },
+    {
+      "relation": "references",
+      "identifier": "10.5281/zenodo.5999665",
+      "scheme": "doi",
+      "resource_type": "software"
+    }
+  ],
+  "grants": [
+    {
+      "id": "10.13039/501100000780::101058518"
+    }
+  ]
+}

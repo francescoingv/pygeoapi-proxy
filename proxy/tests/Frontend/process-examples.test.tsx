@@ -6,13 +6,14 @@ import { renderToStaticMarkup } from 'react-dom/server';
 
 import DynamicProcessForm from '../../resources/js/components/ogc/dynamic-process-form';
 import * as noteEditor from '../../resources/js/components/ogc/job-note-editor';
-import * as collapsible from '../../resources/js/components/ui/collapsible';
+import * as processExamples from '../../resources/js/components/ogc/process-examples';
+import * as button from '../../resources/js/components/ui/button';
 import * as select from '../../resources/js/components/ui/select';
 import { TooltipProvider } from '../../resources/js/components/ui/tooltip';
 import * as validation from '../../resources/js/hooks/use-ogc-form-validation';
 import type { OgcFormSchema } from '../../resources/js/types';
 
-test('selecting service examples replaces compatible inputs while preserving job metadata and outputs', () => {
+test('service examples replace compatible inputs only when loaded and preserve job metadata and outputs', () => {
     const schema: OgcFormSchema = {
         id: 'example',
         title: 'Example service',
@@ -54,6 +55,7 @@ test('selecting service examples replaces compatible inputs while preserving job
         outputs,
     };
     let chooseExample: ((value: string) => void) | undefined;
+    let loadExample: ((value: string) => void) | undefined;
     const form = spyOn(inertia, 'useForm').mockReturnValue({
         data,
         setData: (update: (current: typeof data) => typeof data) => {
@@ -77,9 +79,13 @@ test('selecting service examples replaces compatible inputs while preserving job
     const editor = spyOn(noteEditor, 'JobNoteEditor').mockImplementation(
         () => null,
     );
-    const originalContent = collapsible.CollapsibleContent;
-    const content = spyOn(collapsible, 'CollapsibleContent').mockImplementation(
-        (props) => originalContent({ ...props, forceMount: true }),
+    const originalExamples = processExamples.default;
+    const examples = spyOn(processExamples, 'default').mockImplementation(
+        (props) => {
+            loadExample = props.onLoadExample;
+
+            return originalExamples(props);
+        },
     );
     const originalSelect = select.Select;
     const selector = spyOn(select, 'Select').mockImplementation((props) => {
@@ -95,8 +101,10 @@ test('selecting service examples replaces compatible inputs while preserving job
             </TooltipProvider>,
         );
         expect(chooseExample).toBeFunction();
+        expect(loadExample).toBeFunction();
         expect(html).toContain('role="combobox"');
-        expect(html.indexOf('Service description text')).toBeLessThan(
+        expect(html).not.toContain('Service description text');
+        expect(html.indexOf('Service description')).toBeLessThan(
             html.indexOf('role="combobox"'),
         );
         expect(html.indexOf('role="combobox"')).toBeLessThan(
@@ -105,6 +113,9 @@ test('selecting service examples replaces compatible inputs while preserving job
         expect(data.inputs).toEqual({ count: 99, optional: 12 });
 
         chooseExample!('payload_1');
+        expect(data.inputs).toEqual({ count: 99, optional: 12 });
+        expect(valuesReplaced).not.toHaveBeenCalled();
+        loadExample!('payload_1');
         expect(data).toEqual({
             name: 'My run',
             inputs: { count: 7 },
@@ -114,12 +125,29 @@ test('selecting service examples replaces compatible inputs while preserving job
         expect(valuesReplaced).toHaveBeenCalledWith('inputs');
 
         chooseExample!('payload_2');
+        expect(data.inputs).toEqual({ count: 7 });
+        expect(valuesReplaced).toHaveBeenCalledTimes(1);
+        loadExample!('payload_2');
         expect(data).toEqual({
             name: 'My run',
             inputs: { count: 0 },
             note,
             outputs,
         });
+        expect(valuesReplaced).toHaveBeenCalledTimes(2);
+
+        loadExample!('unknown');
+        expect(data.inputs).toEqual({ count: 0 });
+        expect(valuesReplaced).toHaveBeenCalledTimes(2);
+
+        renderToStaticMarkup(
+            <TooltipProvider>
+                <DynamicProcessForm schema={schema} submissionDisabled />
+            </TooltipProvider>,
+        );
+        loadExample!('payload_1');
+        expect(data.inputs).toEqual({ count: 0 });
+        expect(valuesReplaced).toHaveBeenCalledTimes(2);
 
         chooseExample = undefined;
         const emptyHtml = renderToStaticMarkup(
@@ -133,8 +161,73 @@ test('selecting service examples replaces compatible inputs while preserving job
         form.mockRestore();
         validationHook.mockRestore();
         editor.mockRestore();
-        content.mockRestore();
+        examples.mockRestore();
         selector.mockRestore();
+    }
+});
+
+test('the selected example description is previewed and its inputs load only from the button', () => {
+    const examples = [
+        {
+            id: 'payload_1',
+            title: 'First example title',
+            description: 'First example description',
+            inputs: { count: 1 },
+        },
+        {
+            id: 'payload_2',
+            title: 'Second example title',
+            description: 'Second example description',
+            inputs: { count: 2 },
+        },
+    ];
+    const loadExample = mock(() => {});
+    let loadButton: { disabled?: boolean; onClick?: unknown } | undefined;
+    const originalButton = button.Button;
+    const buttonSpy = spyOn(button, 'Button').mockImplementation((props) => {
+        loadButton = props;
+
+        return originalButton(props);
+    });
+
+    const render = (selectedExample: string, disabled = false) =>
+        renderToStaticMarkup(
+            <processExamples.default
+                examples={examples}
+                selectedExample={selectedExample}
+                onExampleChange={() => {}}
+                onLoadExample={loadExample}
+                disabled={disabled}
+            />,
+        );
+
+    try {
+        const initialHtml = render('');
+        expect(loadButton?.disabled).toBe(true);
+        expect(initialHtml).not.toContain('id="process-example-description"');
+
+        const firstHtml = render('payload_1');
+        expect(firstHtml).toContain('First example title');
+        expect(firstHtml).toContain('First example description');
+        expect(firstHtml).not.toContain('Second example description');
+
+        const secondHtml = render('payload_2');
+        expect(secondHtml).toContain('Second example title');
+        expect(secondHtml).toContain('Second example description');
+        expect(secondHtml).not.toContain('First example description');
+        expect(secondHtml.indexOf('role="combobox"')).toBeLessThan(
+            secondHtml.indexOf('id="process-example-description"'),
+        );
+        expect(loadExample).not.toHaveBeenCalled();
+        expect(loadButton?.disabled).toBe(false);
+        (loadButton?.onClick as () => void)();
+        expect(loadExample).toHaveBeenCalledTimes(1);
+        expect(loadExample).toHaveBeenCalledWith('payload_2');
+
+        render('payload_2', true);
+        expect(loadButton?.disabled).toBe(true);
+    } finally {
+        buttonSpy.mockRestore();
     }
 });
 
@@ -216,15 +309,15 @@ test('confirming clear fields resets only inputs without reusing prefilled input
                     onConfirm?: () => void;
                 }>(child)
             ) {
-continue;
-}
+                continue;
+            }
 
             const confirm =
                 child.props.onConfirm ?? findConfirmation(child.props.children);
 
             if (confirm) {
-return confirm;
-}
+                return confirm;
+            }
         }
     }
 

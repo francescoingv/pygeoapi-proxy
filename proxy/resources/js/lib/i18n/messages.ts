@@ -762,8 +762,9 @@ const it = {
         clearFieldsDescription:
             'Gli input verranno svuotati e i loro eventuali valori predefiniti ripristinati.',
         chooseExample: 'Seleziona un esempio',
+        loadInputParameters: 'Carica parametri di input',
         serviceExampleDescription:
-            'La selezione sostituisce gli input del modulo con quelli dell’esempio.',
+            'Scegli un esempio, poi carica i suoi parametri per sostituire gli input del modulo.',
         previewUnavailable: 'Anteprima non disponibile.',
         previewUnavailableMedia:
             'Anteprima non disponibile per questo tipo di media.',
@@ -1661,8 +1662,9 @@ const en = {
         clearFieldsDescription:
             'The inputs will be cleared and any default input values restored.',
         chooseExample: 'Select an example',
+        loadInputParameters: 'Load input parameters',
         serviceExampleDescription:
-            'Selecting an example replaces the form inputs with the example values.',
+            'Choose an example, then load its parameters to replace the form inputs.',
         previewUnavailable: 'Preview unavailable.',
         previewUnavailableMedia: 'Preview unavailable for this media type.',
         copyRawPayload: 'Copy raw content',

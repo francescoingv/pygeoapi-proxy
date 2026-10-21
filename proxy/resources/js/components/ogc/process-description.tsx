@@ -6,34 +6,16 @@ import {
     CollapsibleContent,
     CollapsibleTrigger,
 } from '@/components/ui/collapsible';
-import { Field, FieldDescription, FieldLabel } from '@/components/ui/field';
-import {
-    Select,
-    SelectContent,
-    SelectGroup,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
-} from '@/components/ui/select';
 import { useTranslation } from '@/hooks/use-translation';
-import type { OgcProcessExample } from '@/types';
 
 export default function ProcessDescription({
     description,
-    examples = [],
-    selectedExample,
-    onExampleChange,
-    disabled,
 }: {
     description?: string | null;
-    examples?: OgcProcessExample[];
-    selectedExample: string;
-    onExampleChange: (value: string) => void;
-    disabled: boolean;
 }) {
     const { t } = useTranslation();
 
-    if (!description && examples.length === 0) {
+    if (!description) {
         return null;
     }
 
@@ -61,69 +43,10 @@ export default function ProcessDescription({
                 </Button>
             </CollapsibleTrigger>
             <CollapsibleContent>
-                <div className="mx-3 flex min-w-0 flex-col gap-4 border-t py-3">
-                    {description ? (
-                        <p className="w-full min-w-0 text-sm leading-relaxed break-words whitespace-pre-wrap text-muted-foreground">
-                            {description}
-                        </p>
-                    ) : null}
-                    {examples.length > 0 ? (
-                        <Field className="min-w-0 sm:max-w-md">
-                            <FieldLabel htmlFor="process-example">
-                                {t('ogc.serviceExample')}
-                            </FieldLabel>
-                            <Select
-                                value={selectedExample}
-                                onValueChange={onExampleChange}
-                                disabled={disabled}
-                            >
-                                <SelectTrigger
-                                    id="process-example"
-                                    className="w-full min-w-0"
-                                    aria-describedby="process-example-description"
-                                >
-                                    <SelectValue
-                                        placeholder={t('ogc.chooseExample')}
-                                    >
-                                        {
-                                            examples.find(
-                                                (example) =>
-                                                    example.id ===
-                                                    selectedExample,
-                                            )?.title
-                                        }
-                                    </SelectValue>
-                                </SelectTrigger>
-                                <SelectContent className="max-w-[calc(100vw-2rem)] sm:max-w-lg">
-                                    <SelectGroup>
-                                        {examples.map((example) => (
-                                            <SelectItem
-                                                key={example.id}
-                                                value={example.id}
-                                                textValue={example.title}
-                                            >
-                                                <span className="flex min-w-0 flex-col gap-1">
-                                                    <span className="font-normal">
-                                                        {example.title}
-                                                    </span>
-                                                    {example.description ? (
-                                                        <span className="text-xs whitespace-normal text-muted-foreground italic">
-                                                            {
-                                                                example.description
-                                                            }
-                                                        </span>
-                                                    ) : null}
-                                                </span>
-                                            </SelectItem>
-                                        ))}
-                                    </SelectGroup>
-                                </SelectContent>
-                            </Select>
-                            <FieldDescription id="process-example-description">
-                                {t('ogc.serviceExampleDescription')}
-                            </FieldDescription>
-                        </Field>
-                    ) : null}
+                <div className="mx-3 border-t py-3">
+                    <p className="w-full min-w-0 text-sm leading-relaxed break-words whitespace-pre-wrap text-muted-foreground">
+                        {description}
+                    </p>
                 </div>
             </CollapsibleContent>
         </Collapsible>

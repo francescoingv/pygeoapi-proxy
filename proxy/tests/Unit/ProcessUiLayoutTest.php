@@ -53,8 +53,10 @@ test('process form exposes the service description and example selection', funct
 
     expect($source)
         ->toContain('<ProcessDescription')
+        ->toContain('<ProcessExamples')
         ->toContain('examples={schema.examples}')
-        ->toContain('onExampleChange={applyExample}');
+        ->toContain('onExampleChange={setSelectedExample}')
+        ->toContain('onLoadExample={applyExample}');
 });
 
 test('geotiff previews render through the protected map tile route', function () {

@@ -16,6 +16,7 @@ import {
 } from '@/components/ogc/input-support';
 import { JobNoteEditor } from '@/components/ogc/job-note-editor';
 import ProcessDescription from '@/components/ogc/process-description';
+import ProcessExamples from '@/components/ogc/process-examples';
 import ProcessOutputSelector from '@/components/ogc/process-output-selector';
 import SchemaFieldRenderer from '@/components/ogc/schema-field-renderer';
 import { Button } from '@/components/ui/button';
@@ -126,7 +127,6 @@ export default function DynamicProcessForm({
     }
 
     function setInput(name: string, update: unknown) {
-        setSelectedExample('');
         setData((currentData) => ({
             ...currentData,
             inputs: updateFormProperty(currentData.inputs, name, update),
@@ -197,11 +197,12 @@ export default function DynamicProcessForm({
                 });
             }}
         >
-            <ProcessDescription
-                description={schema.description}
+            <ProcessDescription description={schema.description} />
+            <ProcessExamples
                 examples={schema.examples}
                 selectedExample={selectedExample}
-                onExampleChange={applyExample}
+                onExampleChange={setSelectedExample}
+                onLoadExample={applyExample}
                 disabled={processing || submissionDisabled}
             />
 

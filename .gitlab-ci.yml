@@ -35,8 +35,13 @@ php-check:
   before_script:
     - |
       printf '\n==> PHP extensions: gd, pcntl\n'
-      if ! install-php-extensions gd pcntl > /tmp/install-php-extensions.log 2>&1; then
-        cat /tmp/install-php-extensions.log
+      if ! apk add --no-cache libpng-dev libjpeg-turbo-dev freetype-dev libwebp-dev > /tmp/apk.log 2>&1; then
+        cat /tmp/apk.log
+        exit 1
+      fi
+      if ! docker-php-ext-configure gd --with-freetype --with-jpeg --with-webp > /tmp/php-ext.log 2>&1 \
+        || ! docker-php-ext-install -j"$(nproc)" gd pcntl >> /tmp/php-ext.log 2>&1; then
+        cat /tmp/php-ext.log
         exit 1
       fi
       for extension in gd pcntl; do

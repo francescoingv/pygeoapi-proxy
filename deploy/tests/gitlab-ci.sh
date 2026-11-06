@@ -54,7 +54,8 @@ require_php_text() {
     fi
 }
 
-require_php_text 'install-php-extensions gd pcntl'
+require_php_text 'docker-php-ext-configure gd --with-freetype --with-jpeg'
+require_php_text 'docker-php-ext-install -j"$(nproc)" gd pcntl'
 require_php_text 'image: composer:2'
 require_php_text 'COMPOSER_ALLOW_SUPERUSER: "1"'
 require_php_text 'install -m 600 /dev/null .env'

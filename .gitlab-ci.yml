@@ -35,6 +35,12 @@ php-check:
   before_script:
     - |
       printf '\n==> PHP extensions: gd, pcntl\n'
+      if ! command -v install-php-extensions > /dev/null; then
+        printf 'install-php-extensions: missing from the image, downloading\n'
+        curl -sSLf -o /usr/local/bin/install-php-extensions \
+          https://github.com/mlocati/docker-php-extension-installer/releases/latest/download/install-php-extensions
+        chmod +x /usr/local/bin/install-php-extensions
+      fi
       if ! install-php-extensions gd pcntl > /tmp/install-php-extensions.log 2>&1; then
         cat /tmp/install-php-extensions.log
         exit 1

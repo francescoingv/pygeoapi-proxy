@@ -63,7 +63,7 @@ class JobTableQuery
      */
     private function localizedTitle(Builder $query): array
     {
-        $mysql = $query->getConnection()->getDriverName() === 'mysql';
+        $mysql = in_array($query->getConnection()->getDriverName(), ['mysql', 'mariadb'], true);
         $processes = (clone $query)->setEagerLoads([]);
         if ($mysql) {
             $processes->selectRaw('BINARY process_id AS process_id, BINARY process_version AS process_version');

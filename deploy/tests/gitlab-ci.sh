@@ -56,7 +56,6 @@ require_php_text() {
 
 require_php_text 'docker-php-ext-configure gd --with-freetype --with-jpeg'
 # shellcheck disable=SC2016
-# shellcheck disable=SC2016 # literal CI text, not meant to expand
 require_php_text 'docker-php-ext-install -j"$(nproc)" gd pcntl'
 require_php_text 'image: composer:2'
 require_php_text 'COMPOSER_ALLOW_SUPERUSER: "1"'

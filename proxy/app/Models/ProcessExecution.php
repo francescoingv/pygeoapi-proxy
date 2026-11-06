@@ -71,7 +71,7 @@ class ProcessExecution extends Model
      */
     public function results(): HasMany
     {
-        return $this->hasMany(ProcessExecutionResult::class);
+        return $this->hasMany(ProcessExecutionResult::class)->orderBy('id');
     }
 
     /**
